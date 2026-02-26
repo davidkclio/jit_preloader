@@ -10,7 +10,7 @@ on:
         type: string
       create_pr:
         description: 'Apply suggested doc changes and open a PR'
-        required: false
+        required: true
         default: false
         type: boolean
 
@@ -43,13 +43,13 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
         run: |
-          ALLOWED_TOOLS='Read Grep Glob "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(cat *)"'
+          ALLOWED_TOOLS=( "Read" "Grep" "Glob" "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(cat *)" )
           if [ "${{ inputs.create_pr }}" = "true" ]; then
-            ALLOWED_TOOLS="$ALLOWED_TOOLS Write Edit"
+            ALLOWED_TOOLS+=( "Write" "Edit" )
           fi
           claude -p \
             --max-turns 35 \
-            --allowedTools $ALLOWED_TOOLS \
+            --allowedTools "${ALLOWED_TOOLS[@]}" \
             <<'PROMPT' | tee "$GITHUB_STEP_SUMMARY"
           You are analyzing the jit_preloader repository (a Ruby gem for N+1 preloading in Rails) to recommend documentation updates.
 
@@ -100,9 +100,18 @@ jobs:
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Modified files:"
+            git status --short
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No files were modified by Claude (report-only or no doc updates applied)."
           fi
+
+      - name: No doc changes to commit
+        if: inputs.create_pr && steps.changes.outputs.has_changes != 'true'
+        run: |
+          echo "::notice title=No PR created::Claude did not modify any files. Check the analysis report above; if it suggested changes, the model may not have applied them (e.g. ran out of turns or did not use Write/Edit). Re-run with 'Apply suggested doc changes' unchecked to see suggestions only."
+          exit 0
 
       - name: Create branch and PR with documentation updates
         if: inputs.create_pr && steps.changes.outputs.has_changes == 'true'

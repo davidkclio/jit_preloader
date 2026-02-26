@@ -69,6 +69,8 @@ module JitPreloader
 
     private
 
+    # Writes a debug line to the Rails logger when JitPreloader.debug? is true.
+    # No-ops when Rails or Rails.logger is unavailable.
     def log_debug(event, association:, record_count:)
       return unless defined?(Rails) && Rails.logger
       Rails.logger.debug "[JitPreloader] #{event}: #{association} for #{record_count} record(s)"
