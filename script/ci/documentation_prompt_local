@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Run the documentation-prompt analysis locally (same logic as
+# .github/workflows/suggest-documentation.yml). Use from a PR branch to get
+# suggestions for doc updates based on diff vs origin/master.
+#
+# Prereqs: npm install -g @anthropic-ai/claude-code
+# Usage: ANTHROPIC_API_KEY=your-key script/ci/documentation_prompt_local
+
+set -e
+
+if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+  echo "Error: set ANTHROPIC_API_KEY to run this script." >&2
+  exit 1
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+git fetch origin master 2>/dev/null || true
+
+claude -p \
+  --max-turns 25 \
+  --allowedTools "Read" "Grep" "Glob" "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(cat *)" \
+  <<'PROMPT'
+You are analyzing the jit_preloader repository (a Ruby gem for N+1 preloading in Rails) to recommend documentation updates.
+
+CONTEXT:
+- This workflow runs on a branch. Compare the current branch to origin/master to see what code changed.
+- Use: git diff origin/master...HEAD --name-only (and git diff origin/master...HEAD for full diffs) to list and inspect changes.
+- Repo structure: README.md (main user-facing docs), lib/ (gem code), spec/ (tests), jit_preloader.gemspec. No separate dev-docs or Confluence.
+
+YOUR TASK:
+For the code changes between this branch and master, identify what documentation should be updated or created. Consider:
+
+1. **README.md** – usage, installation, examples, and "What it doesn't solve" / "Consequences" that might be affected or missing
+2. **Code documentation** – inline comments, YARD/rdoc in lib/, and method/class docs that should reflect new behaviour or APIs
+3. **Other** – CHANGELOG (if present), contributing guidelines, gem summary/description in jit_preloader.gemspec, or any other docs you think are relevant
+
+RULES:
+- Do NOT modify any files. Do NOT create branches, commits, or PRs.
+- Use only Read, Grep, Glob, and the allowed Bash commands to explore the repo and diffs.
+- Base your recommendations on the actual diff (origin/master...HEAD). If there are no changes, say so.
+- Be specific: for each recommendation, name the doc or area and what should change (e.g. "Update dev-docs/foo.md: add section on X because the API now does Y").
+- If a change is purely refactor or trivial and needs no doc updates, say that.
+
+OUTPUT:
+Produce a clear, structured report in the following format (write it to stdout):
+
+## Documentation change suggestions
+
+### 1. README.md
+- (bullet list of specific sections and suggested changes, or "None identified")
+
+### 2. Code documentation
+- (bullet list of files in lib/ and suggested comment/YARD updates, or "None identified")
+
+### 3. Other
+- (bullet list or "None identified")
+
+### Summary
+(Short overall summary and priority if applicable.)
+
+Start by running the git diff commands to see what changed, then read the relevant changed files and any existing docs before writing your report.
+PROMPT

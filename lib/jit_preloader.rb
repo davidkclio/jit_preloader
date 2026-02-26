@@ -34,6 +34,16 @@ module JitPreloader
     @max_ids_per_query
   end
 
+  # When true, logs each JIT preload (association name and record count) to the Rails logger.
+  # Useful for development to verify preloading behavior. Default is false.
+  def self.debug=(value)
+    @debug = value
+  end
+
+  def self.debug?
+    @debug
+  end
+
   def self.globally_enabled?
     if @enabled && @enabled.respond_to?(:call)
       @enabled.call

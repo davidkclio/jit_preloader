@@ -20,6 +20,10 @@ module JitPreloader
         # Some of the records may already have the association loaded and we should not load them again
         records_requiring_loading = records_with_association.select{|r| !r.association(associations).loaded? }
 
+        if JitPreloader.debug? && records_requiring_loading.any?
+          log_debug("jit_preload", association: associations, record_count: records_requiring_loading.size)
+        end
+
         self.class.new(records: records_requiring_loading, associations: associations).call
       end
     else
@@ -39,6 +43,11 @@ module JitPreloader
 
         # Some of the records may already have the association loaded and we should not load them again
         records_requiring_loading = records_with_association.select{ |record| !record.association(associations).loaded? }
+
+        if JitPreloader.debug? && records_requiring_loading.any?
+          log_debug("jit_preload", association: associations, record_count: records_requiring_loading.size)
+        end
+
         preload records_with_association, associations
       end
     end
@@ -56,6 +65,13 @@ module JitPreloader
 
     def self._load(args)
       nil
+    end
+
+    private
+
+    def log_debug(event, association:, record_count:)
+      return unless defined?(Rails) && Rails.logger
+      Rails.logger.debug "[JitPreloader] #{event}: #{association} for #{record_count} record(s)"
     end
 
   end
