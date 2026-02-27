@@ -3,9 +3,9 @@
 # create a branch and open a PR (same as workflow with create_pr=true, but local).
 #
 # Prereqs: npm install -g @anthropic-ai/claude-code; gh CLI; push access to origin.
-# Usage: ANTHROPIC_API_KEY=your-key script/ci/create_dev_documentation_pr.sh
+# Usage: ANTHROPIC_API_KEY=your-key script/ci/documentation_apply_and_pr_local
 #
-# Runs from current branch. Pushes branch dev-docs/<current-branch>
+# Runs from current branch. Pushes branch ai-doc-suggestions/-<current-branch>
 # and opens a PR into the current branch.
 
 set -e
@@ -17,15 +17,6 @@ fi
 
 cd "$(git rev-parse --show-toplevel)"
 git fetch origin master 2>/dev/null || true
-git fetch origin 2>/dev/null || true
-
-BASE_BRANCH=$(git branch --show-current)
-BRANCH="dev-docs/${BASE_BRANCH//\//-}"
-EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url' 2>/dev/null || true)
-if [[ -n "$EXISTING_PR" ]]; then
-  echo "PR already exists: $EXISTING_PR"
-  exit 0
-fi
 
 REPORT_FILE=$(mktemp)
 trap 'rm -f "$REPORT_FILE"' EXIT
@@ -85,17 +76,15 @@ if [[ -z "$(git status --porcelain)" ]]; then
   exit 0
 fi
 
-if git show-ref --quiet refs/heads/"$BRANCH"; then
-  git branch -D "$BRANCH"
-fi
-
+BASE_BRANCH=$(git branch --show-current)
+BRANCH="ai-doc-suggestions/-${BASE_BRANCH//\//-}"
 echo "Creating branch $BRANCH, committing, pushing, and opening PR..."
 git checkout -b "$BRANCH"
 git add -A
 git commit -m "Apply suggested documentation updates"
-git push -u origin "$BRANCH" 2>/dev/null || git push --force-with-lease -u origin "$BRANCH"
+git push -u origin "$BRANCH"
 
-PR_BODY="Auto-generated from local documentation impact analysis (script/ci/create_dev_documentation_pr.sh)."
+PR_BODY="Auto-generated from local documentation impact analysis (script/ci/documentation_apply_and_pr_local)."
 if [[ -s "$REPORT_FILE" ]]; then
   PR_BODY="${PR_BODY}
 
@@ -111,7 +100,7 @@ trap 'rm -f "$REPORT_FILE" "$BODY_FILE"' EXIT
 printf '%s' "$PR_BODY" > "$BODY_FILE"
 
 gh pr create --base "$BASE_BRANCH" --head "$BRANCH" \
-  --title "${BASE_BRANCH} - Dev documentation updates" \
+  --title "${BASE_BRANCH}: Suggested documentation updates" \
   --body-file "$BODY_FILE"
 
 echo "Done. PR created for branch $BRANCH."
