@@ -71,7 +71,6 @@ module JitPreloader
     private
 
     def log_debug(event, association:, record_count:)
-      return unless defined?(Rails) && Rails.logger
       Rails.logger.debug "[JitPreloader] #{event}: #{association} for #{record_count} record(s)"
     end
 
