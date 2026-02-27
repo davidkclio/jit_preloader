@@ -1,5 +1,6 @@
 module JitPreloader
   class Preloader < ActiveRecord::Associations::Preloader
+      # NOTE: Unfortunately right now it is not possible to log output to debug mode
 
     attr_accessor :records
 
