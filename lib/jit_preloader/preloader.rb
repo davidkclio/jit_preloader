@@ -1,6 +1,5 @@
 module JitPreloader
   class Preloader < ActiveRecord::Associations::Preloader
-      # NOTE: Unfortunately right now it is not possible to log output to debug mode
 
     attr_accessor :records
 
@@ -70,6 +69,8 @@ module JitPreloader
 
     private
 
+    # Writes a debug line to Rails.logger when JitPreloader.debug? is true.
+    # Called before each JIT preload to report the association and record count.
     def log_debug(event, association:, record_count:)
       return unless defined?(Rails) && Rails.logger
       Rails.logger.debug "[JitPreloader] #{event}: #{association} for #{record_count} record(s)"
