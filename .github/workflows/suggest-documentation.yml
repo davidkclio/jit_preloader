@@ -111,7 +111,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="docs/suggested-updates-${GITHUB_REF_NAME//\//-}"
+          BRANCH="auto-document/-${GITHUB_REF_NAME//\//-}"
           git checkout -b "$BRANCH"
           git add -A
           git commit -m "Apply suggested documentation updates"
