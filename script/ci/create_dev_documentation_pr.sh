@@ -3,9 +3,9 @@
 # create a branch and open a PR (same as workflow with create_pr=true, but local).
 #
 # Prereqs: npm install -g @anthropic-ai/claude-code; gh CLI; push access to origin.
-# Usage: ANTHROPIC_API_KEY=your-key script/ci/documentation_apply_and_pr_local
+# Usage: ANTHROPIC_API_KEY=your-key script/ci/create_dev_documentation_pr.sh
 #
-# Runs from current branch. Pushes branch ai-doc-suggestions/-<current-branch>
+# Runs from current branch. Pushes branch dev-docs/-<current-branch>
 # and opens a PR into the current branch.
 
 set -e
@@ -18,11 +18,14 @@ fi
 cd "$(git rev-parse --show-toplevel)"
 git fetch origin master 2>/dev/null || true
 
+REPORT_FILE=$(mktemp)
+trap 'rm -f "$REPORT_FILE"' EXIT
+
 echo "Running documentation analysis and applying changes (Claude may edit files)..."
 claude -p \
   --max-turns 35 \
   --allowedTools "Read" "Grep" "Glob" "Write" "Edit" "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(cat *)" \
-  <<'PROMPT'
+  <<PROMPT
 You are analyzing the jit_preloader repository (a Ruby gem for N+1 preloading in Rails) to recommend documentation updates.
 
 CONTEXT:
@@ -38,7 +41,8 @@ For the code changes between this branch and master, identify what documentation
 2. **Code documentation** – inline comments, YARD/rdoc in lib/, and method/class docs that should reflect new behaviour or APIs
 3. **Other** – CHANGELOG (if present), contributing guidelines, gem summary/description in jit_preloader.gemspec, or any other docs you think are relevant
 
-First, produce a clear structured report to stdout in this format:
+First, produce a clear structured report. You MUST write this exact report to the file at: $REPORT_FILE
+Use this format in that file:
 
 ## Documentation change suggestions
 
@@ -54,6 +58,8 @@ First, produce a clear structured report to stdout in this format:
 ### Summary
 (Short overall summary and priority if applicable.)
 
+Also print the same report to stdout so the user sees it.
+
 PART 2 – Apply changes
 Apply the documentation changes you recommended. Edit the actual files (README.md, files in lib/, etc.) so the docs match the code. If you identified no changes or only external/Confluence items, do nothing. Do NOT run any git commands (no commit, push, or branch); the script will create the branch and PR.
 
@@ -62,7 +68,7 @@ RULES:
 - Be specific in the report (e.g. "Update README: add section on X because the API now does Y").
 - If the change is purely refactor or trivial and needs no doc updates, say that and do not edit.
 
-Start by running the git diff commands to see what changed, then read the relevant changed files and existing docs, then write your report, then apply the changes.
+Start by running the git diff commands to see what changed, then read the relevant changed files and existing docs, then write your report to $REPORT_FILE and to stdout, then apply the changes.
 PROMPT
 
 if [[ -z "$(git status --porcelain)" ]]; then
@@ -71,14 +77,30 @@ if [[ -z "$(git status --porcelain)" ]]; then
 fi
 
 BASE_BRANCH=$(git branch --show-current)
-BRANCH="ai-doc-suggestions/-${BASE_BRANCH//\//-}"
+BRANCH="dev-docs/-${BASE_BRANCH//\//-}"
 echo "Creating branch $BRANCH, committing, pushing, and opening PR..."
 git checkout -b "$BRANCH"
 git add -A
 git commit -m "Apply suggested documentation updates"
 git push -u origin "$BRANCH"
+
+PR_BODY="Auto-generated from local documentation impact analysis (script/ci/create_dev_documentation_pr.sh)."
+if [[ -s "$REPORT_FILE" ]]; then
+  PR_BODY="${PR_BODY}
+
+<details>
+<summary>Documentation change suggestions</summary>
+
+$(cat "$REPORT_FILE")
+</details>"
+fi
+
+BODY_FILE=$(mktemp)
+trap 'rm -f "$REPORT_FILE" "$BODY_FILE"' EXIT
+printf '%s' "$PR_BODY" > "$BODY_FILE"
+
 gh pr create --base "$BASE_BRANCH" --head "$BRANCH" \
-  --title "${BASE_BRANCH}: Suggested documentation updates" \
-  --body "Auto-generated from local documentation impact analysis (script/ci/documentation_apply_and_pr_local)."
+  --title "${BASE_BRANCH} - Dev documentation updates" \
+  --body-file "$BODY_FILE"
 
 echo "Done. PR created for branch $BRANCH."
