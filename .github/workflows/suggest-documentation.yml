@@ -3,16 +3,6 @@ name: Documentation change suggestions
 
 on:
   workflow_dispatch:
-    inputs:
-      anthropic_api_key:
-        description: 'Anthropic API key'
-        required: true
-        type: string
-      create_pr:
-        description: 'Apply suggested doc changes and open a PR'
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   suggest-documentation-changes:
@@ -22,6 +12,15 @@ jobs:
       contents: write
 
     steps:
+      - name: Require ANTHROPIC_API_KEY
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY repository secret must be set."
+            exit 1
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -35,18 +34,14 @@ jobs:
         run: git fetch origin master
 
       - name: Mask API key
-        if: ${{ inputs.anthropic_api_key != '' }}
-        run: echo "::add-mask::${{ inputs.anthropic_api_key }}"
+        run: echo "::add-mask::${{ secrets.ANTHROPIC_API_KEY }}"
 
       - name: Run documentation impact analysis
         id: analyze
         env:
-          ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          ALLOWED_TOOLS='Read Grep Glob "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(cat *)"'
-          if [ "${{ inputs.create_pr }}" = "true" ]; then
-            ALLOWED_TOOLS="$ALLOWED_TOOLS Write Edit"
-          fi
+          ALLOWED_TOOLS='Read Grep Glob Write Edit "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" "Bash(cat *)"'
           claude -p \
             --max-turns 35 \
             --allowedTools $ALLOWED_TOOLS \
@@ -83,19 +78,18 @@ jobs:
           ### Summary
           (Short overall summary and priority if applicable.)
 
-          PART 2 – Apply changes (only if you have Write and Edit available)
-          If you have Write and Edit tools available: apply the documentation changes you recommended. Edit the actual files (README.md, files in lib/, etc.) so the docs match the code. If you identified no changes or only external/Confluence items, do nothing. Do NOT run any git commands (no commit, push, or branch); the workflow will create the branch and PR.
+          PART 2 – Apply changes
+          Apply the documentation changes you recommended. Edit the actual files (README.md, files in lib/, etc.) so the docs match the code. If you identified no changes or only external/Confluence items, do nothing. Do NOT run any git commands (no commit, push, or branch); the workflow will create the branch and PR.
 
           RULES:
           - Use only Read, Grep, Glob, and the allowed Bash commands to explore; base recommendations on the actual diff (origin/master...HEAD). If there are no code changes, say so and do not edit.
           - Be specific in the report (e.g. "Update README: add section on X because the API now does Y").
           - If the change is purely refactor or trivial and needs no doc updates, say that and do not edit.
 
-          Start by running the git diff commands to see what changed, then read the relevant changed files and existing docs, then write your report, then (if you have Write/Edit) apply the changes.
+          Start by running the git diff commands to see what changed, then read the relevant changed files and existing docs, then write your report, then apply the changes.
           PROMPT
 
       - name: Check for documentation changes
-        if: inputs.create_pr
         id: changes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
@@ -105,13 +99,13 @@ jobs:
           fi
 
       - name: Create branch and PR with documentation updates
-        if: inputs.create_pr && steps.changes.outputs.has_changes == 'true'
+        if: steps.changes.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="ai-doc-suggestions/-${GITHUB_REF_NAME//\//-}"
+          BRANCH="dev-docs/${GITHUB_REF_NAME//\//-}"
           git checkout -b "$BRANCH"
           git add -A
           git commit -m "Apply suggested documentation updates"
