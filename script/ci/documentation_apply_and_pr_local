@@ -5,7 +5,7 @@
 # Prereqs: npm install -g @anthropic-ai/claude-code; gh CLI; push access to origin.
 # Usage: ANTHROPIC_API_KEY=your-key script/ci/documentation_apply_and_pr_local
 #
-# Runs from current branch. Pushes branch auto-document/-<current-branch>
+# Runs from current branch. Pushes branch ai-doc-suggestions/-<current-branch>
 # and opens a PR into the current branch.
 
 set -e
@@ -71,14 +71,14 @@ if [[ -z "$(git status --porcelain)" ]]; then
 fi
 
 BASE_BRANCH=$(git branch --show-current)
-BRANCH="auto-document/-${BASE_BRANCH//\//-}"
+BRANCH="ai-doc-suggestions/-${BASE_BRANCH//\//-}"
 echo "Creating branch $BRANCH, committing, pushing, and opening PR..."
 git checkout -b "$BRANCH"
 git add -A
 git commit -m "Apply suggested documentation updates"
 git push -u origin "$BRANCH"
 gh pr create --base "$BASE_BRANCH" --head "$BRANCH" \
-  --title "Suggested documentation updates" \
+  --title "${BASE_BRANCH}: Suggested documentation updates" \
   --body "Auto-generated from local documentation impact analysis (script/ci/documentation_apply_and_pr_local)."
 
 echo "Done. PR created for branch $BRANCH."
