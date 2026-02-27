@@ -243,13 +243,6 @@ JitPreloader.globally_enabled = ->{ $redis.get('always_jit_preload') == 'on' }
 # Setting global max ids constraint on all aggregation methods.
 JitPreloader.max_ids_per_query = 10
 
-# Enable debug logging to the Rails logger.
-# Each JIT preload will emit a line like:
-#   [JitPreloader] jit_preload: emails for 42 record(s)
-# Useful in development to verify that preloading is firing as expected.
-# Default is false.
-JitPreloader.debug = true
-
 class Contact < ActiveRecord::Base
   has_many :emails
   has_many_aggregate :emails, :count_all, :count, "*"
@@ -266,6 +259,23 @@ end
 
 
 ```
+
+### Debug logging
+
+You can enable debug logging to the Rails logger to verify that JIT preloading is firing as expected. This works regardless of whether you use `jit_preload` on individual queries or have it enabled globally.
+
+```ruby
+# Default is false.
+JitPreloader.debug = true
+```
+
+When enabled, each preload emits a line via `Rails.logger.debug`:
+
+```
+[JitPreloader] jit_preload: emails for 42 record(s)
+```
+
+This is useful in development to confirm that associations are being batch-loaded rather than triggering N+1 queries.
 
 ## What it doesn't solve
 
