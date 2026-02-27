@@ -40,6 +40,7 @@ module JitPreloader
     @debug = value
   end
 
+  # Returns true if debug logging is enabled. See +debug=+.
   def self.debug?
     @debug
   end
